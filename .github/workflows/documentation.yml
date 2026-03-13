@@ -1,0 +1,38 @@
+# This workflow runs on `pull_request`.
+#
+# `Terraform Docs` job uses `checkout` to download the content of the repository. It uses
+# GitHub Action `terraform-docs/gh-actions` to create README.md file.
+#
+# Documentation
+# - https://github.com/actions/checkout
+# - https://github.com/marketplace/actions/terraform-docs-gh-actions
+
+name: Terraform Docs
+
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+    branches:
+      - '*'                      # matches every branch that doesn't contain a '/'
+      - '*/*'                    # matches every branch containing a single '/'
+      - '**'                     # matches every branch
+
+permissions:
+  contents: write
+
+jobs:
+  terraform-docs:
+    name: Terraform Docs
+    runs-on: ubuntu-latest
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Render terraform docs inside the README.md and push changes back to PR branch
+        uses: terraform-docs/gh-actions@v1
+        with:
+          config-file: .github/terraform-docs/.tfdocs-config.yml
+          git-push: true
+          output-format: markdown document
+          working-dir: .

@@ -1,0 +1,56 @@
+name: Bug Report
+description: File a report to help us improve
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Enter a clear and concise description of the nature of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Enter a clear and concise description of what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Copy and paste any relevant log output.
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: With which version of the Terraform module is the problem is?
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        *If you are not using the latest available version of the Terraform module, please validate if the problem exists with this version.*
+  - type: input
+    id: runner
+    attributes:
+      label: Runner
+      description: With which runner image is the problem is?
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue, you agree to follow our Code of Conduct.
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

@@ -1,0 +1,81 @@
+# This workflow runs on `pull_request`.
+#
+# `Terraform` job uses `checkout` to download the content of the repository. It installs the latest version of Terraform CLI
+# It uses the GitHub Action `GitHubAction-TerraformFormat` to run `terraform fmt`. If change are made to the code, the code is push
+# to the branch.
+#
+# Documentation
+# - https://github.com/actions/checkout
+# - https://github.com/benoitblais-hashicorp-demo/GitHubAction-TerraformFormat
+#
+
+name: Terraform
+
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+    branches:
+      - '*'                      # matches every branch that doesn't contain a '/'
+      - '*/*'                    # matches every branch containing a single '/'
+      - '**'                     # matches every branch
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+
+      - name: Branch
+        id: branch
+        run: echo "branch=${GITHUB_HEAD_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.branch.outputs.branch }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Format
+        id: fmt
+        uses: benoitblais-hashicorp-demo/GitHubAction-TerraformFormat@v1.0.0
+        with:
+          check: false
+          recursive: true
+          comment: true
+
+      - name: Git Push
+        if: ${{ steps.fmt.outputs.exitcode == 3 }}
+        run: |
+          echo "INFO     | Pushing file(s) to the repository."
+          {
+            git config user.name "GitHub Action"
+            git config user.email "notifications@github.com"
+            git add -A
+            git commit -m "Automated Terraform Formatting"
+            git push -u origin ${{ steps.branch.outputs.branch }}
+          } ||
+          {
+            echo "ERROR    | Unable to push file(s) to the repository."
+          }
+          echo "INFO     | Adding comment to pull request."
+          accept_header="Accept: application/vnd.github.v3+json"
+          auth_header="Authorization: token ${GITHUB_TOKEN}"
+          content_header="Content-Type: application/json"
+          pr_comments_url=$(jq -r ".pull_request.comments_url" "${GITHUB_EVENT_PATH}")
+          body="Terraform file(s) has been formatted and pushed to the repository.<br/>You need to update your local copy of the repository."
+          pr_payload=$(echo '{}' | jq --arg body "${body}" '.body = $body')
+          {
+              curl -sS -X POST -H "${auth_header}" -H "${accept_header}" -H "${content_header}" -d "${pr_payload}" -L "${pr_comments_url}" > /dev/null
+          } ||
+          {
+              echo "ERROR    | Unable to add comment to pull request."
+          }

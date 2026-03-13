@@ -1,0 +1,36 @@
+# This workflow runs on `pull_request` `closed`.
+#
+# `Tag version` job uses `rymndhng/release-on-push-action` to create a release with sementic version.
+#
+# Documentation
+# - https://github.com/rymndhng/release-on-push-action
+
+name: Tag version
+
+on:  # yamllint disable-line rule:truthy
+  pull_request:
+    branches:
+      - '*'                      # matches every branch that doesn't contain a '/'
+      - '*/*'                    # matches every branch containing a single '/'
+      - '**'                     # matches every branch
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  tag:
+    name: Tag version
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+
+      - uses: rymndhng/release-on-push-action@v0.28.0
+        with:
+          bump_version_scheme: patch
+          tag_prefix: v
+          release_body: ${{ github.event.pull_request.body }}
+          max_commits: 0

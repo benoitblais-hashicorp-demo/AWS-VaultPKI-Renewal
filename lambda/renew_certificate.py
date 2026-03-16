@@ -1,6 +1,7 @@
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from base64 import b64encode
 
@@ -22,9 +23,10 @@ def _get_vault_token_from_aws_auth() -> str:
     vault_auth_role = _require_env("VAULT_AUTH_ROLE")
     vault_namespace = os.getenv("VAULT_NAMESPACE", "")
 
-    sts_url = "https://sts.amazonaws.com/"
     sts_body = "Action=GetCallerIdentity&Version=2011-06-15"
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
+    sts_url = f"https://sts.{region}.amazonaws.com/"
+    sts_host = urllib.parse.urlparse(sts_url).netloc
 
     session = boto3.Session()
     credentials = session.get_credentials()
@@ -39,7 +41,7 @@ def _get_vault_token_from_aws_auth() -> str:
         data=sts_body,
         headers={
             "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
-            "Host": "sts.amazonaws.com",
+            "Host": sts_host,
         },
     )
     SigV4Auth(frozen_credentials, "sts", region).add_auth(signed_request)

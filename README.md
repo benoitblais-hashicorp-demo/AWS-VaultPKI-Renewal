@@ -151,3 +151,326 @@ terraform apply
 - https://developer.hashicorp.com/vault/api-docs/secret/pki#generate-certificate-and-key
 - https://developer.hashicorp.com/vault/docs/auth/aws
 - https://docs.aws.amazon.com/acm/latest/APIReference/API_ImportCertificate.html
+
+<!-- BEGIN_TF_DOCS -->
+# AWS Vault PKI Renewal Demo
+
+This Terraform project provisions AWS infrastructure to demonstrate automatic TLS certificate renewal using Vault PKI.
+
+## What This Demo Demonstrates
+
+- An hourly AWS Lambda function requests a renewed certificate from Vault PKI.
+- Lambda imports the renewed private key and certificate into AWS ACM.
+- An Application Load Balancer (ALB) HTTPS listener uses that ACM certificate ARN.
+- Certificate rotation happens in place by re-importing to the same ACM certificate ARN.
+
+## Demo Components
+
+- Vault policy and Vault AWS auth role for Lambda certificate issuance
+- Bootstrap certificate issued from an existing Vault PKI mount and role
+- ACM imported certificate (bootstrapped from Vault, rotated by Lambda)
+- Application Load Balancer with HTTPS listener on port 443
+- Lambda function (`python3.12`) for Vault AWS IAM login, renewal, and ACM import
+- EventBridge rule (`rate(1 hour)`) triggering the Lambda
+- IAM role and policy scoped for ACM import + CloudWatch Logs
+
+## Permissions
+
+### AWS
+
+The AWS identity running Terraform needs permissions to create and manage:
+
+- IAM roles/policies for Lambda
+- Lambda function and permissions
+- EventBridge rules and targets
+- ACM certificate import
+- EC2 security groups
+- Elastic Load Balancing resources (ALB/listener)
+
+### Vault
+
+Terraform identity for Vault provider must be able to manage:
+
+- Vault policy
+- Vault AWS auth role
+- Certificate issuance from an existing Vault PKI mount and PKI role
+
+The Lambda Vault token created dynamically through AWS auth is scoped by the Terraform-managed policy to:
+
+- `update` on `/<pki_mount>/issue/<pki_role>`
+
+## Authentications
+
+### AWS Authentication
+
+Authenticate Terraform to AWS using your standard mechanism (environment variables, AWS profile, SSO, or assumed role).
+
+### Vault Authentication
+
+Terraform `vault` provider uses dynamic credentials from environment variables (for example HCP Terraform dynamic credentials), not a hardcoded token in code.
+
+The Lambda authenticates to Vault using AWS IAM auth and its own execution role.
+
+Required Lambda Vault environment values:
+
+- `VAULT_ADDR`
+- `VAULT_NAMESPACE` (optional)
+- `VAULT_AUTH_PATH`
+- `VAULT_AUTH_ROLE`
+- `VAULT_PKI_PATH`
+- `VAULT_PKI_ROLE`
+
+## Features
+
+- End-to-end automated hourly certificate renewal workflow
+- ACM certificate reuse pattern to avoid ALB listener ARN changes
+- Fixed-response HTTPS endpoint for simple certificate testing
+- Parameterized networking, naming, and Vault PKI settings
+
+## Documentation
+
+## Requirements
+
+The following requirements are needed by this module:
+
+- <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.6.0, < 2.0.0)
+
+- <a name="requirement_archive"></a> [archive](#requirement\_archive) (~> 2.7)
+
+- <a name="requirement_aws"></a> [aws](#requirement\_aws) (~> 6.36)
+
+- <a name="requirement_vault"></a> [vault](#requirement\_vault) (~> 5.8)
+
+## Modules
+
+No modules.
+
+## Required Inputs
+
+The following input variables are required:
+
+### <a name="input_vault_addr"></a> [vault\_addr](#input\_vault\_addr)
+
+Description: (Required) Vault address used by the renewal Lambda
+
+Type: `string`
+
+## Optional Inputs
+
+The following input variables are optional (have default values):
+
+### <a name="input_allowed_ingress_cidrs"></a> [allowed\_ingress\_cidrs](#input\_allowed\_ingress\_cidrs)
+
+Description: (Optional) CIDR blocks allowed to access the ALB over HTTPS
+
+Type: `list(string)`
+
+Default:
+
+```json
+[
+  "0.0.0.0/0"
+]
+```
+
+### <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region)
+
+Description: (Optional) AWS region where resources are deployed
+
+Type: `string`
+
+Default: `"ca-central-1"`
+
+### <a name="input_initial_certificate_common_name"></a> [initial\_certificate\_common\_name](#input\_initial\_certificate\_common\_name)
+
+Description: (Optional) Common Name used for the bootstrap ACM certificate issued from Vault PKI
+
+Type: `string`
+
+Default: `"elb.demo.example.com"`
+
+### <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix)
+
+Description: (Optional) Prefix used for naming resources
+
+Type: `string`
+
+Default: `"vault-pki"`
+
+### <a name="input_renewed_certificate_common_name"></a> [renewed\_certificate\_common\_name](#input\_renewed\_certificate\_common\_name)
+
+Description: (Optional) Common Name requested from Vault PKI during renewal
+
+Type: `string`
+
+Default: `"elb.demo.example.com"`
+
+### <a name="input_renewed_certificate_ttl"></a> [renewed\_certificate\_ttl](#input\_renewed\_certificate\_ttl)
+
+Description: (Optional) TTL sent to Vault PKI for renewed certificates
+
+Type: `string`
+
+Default: `"24h"`
+
+### <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids)
+
+Description: (Optional) Subnet IDs for the application load balancer
+
+Type: `list(string)`
+
+Default: `[]`
+
+### <a name="input_tags"></a> [tags](#input\_tags)
+
+Description: (Optional) Tags applied to all resources
+
+Type: `map(string)`
+
+Default: `{}`
+
+### <a name="input_vault_auth_path"></a> [vault\_auth\_path](#input\_vault\_auth\_path)
+
+Description: (Optional) Vault auth mount path used by the renewal Lambda
+
+Type: `string`
+
+Default: `"aws"`
+
+### <a name="input_vault_auth_role_name"></a> [vault\_auth\_role\_name](#input\_vault\_auth\_role\_name)
+
+Description: (Optional) Vault AWS auth role name used by the renewal Lambda
+
+Type: `string`
+
+Default: `"lambda-cert-rotator"`
+
+### <a name="input_vault_auth_token_max_ttl"></a> [vault\_auth\_token\_max\_ttl](#input\_vault\_auth\_token\_max\_ttl)
+
+Description: (Optional) Vault token max TTL in seconds for Lambda login
+
+Type: `number`
+
+Default: `7200`
+
+### <a name="input_vault_auth_token_ttl"></a> [vault\_auth\_token\_ttl](#input\_vault\_auth\_token\_ttl)
+
+Description: (Optional) Vault token TTL in seconds for Lambda login
+
+Type: `number`
+
+Default: `3600`
+
+### <a name="input_vault_namespace"></a> [vault\_namespace](#input\_vault\_namespace)
+
+Description: (Optional) Vault namespace used by the renewal Lambda
+
+Type: `string`
+
+Default: `""`
+
+### <a name="input_vault_pki_path"></a> [vault\_pki\_path](#input\_vault\_pki\_path)
+
+Description: (Optional) Vault PKI mount path used by the renewal Lambda
+
+Type: `string`
+
+Default: `"pki_int"`
+
+### <a name="input_vault_pki_role"></a> [vault\_pki\_role](#input\_vault\_pki\_role)
+
+Description: (Optional) Vault PKI role used by the renewal Lambda
+
+Type: `string`
+
+Default: `"elb-cert-issuer"`
+
+### <a name="input_vpc_cidr_block"></a> [vpc\_cidr\_block](#input\_vpc\_cidr\_block)
+
+Description: (Optional) CIDR block used when auto-creating VPC networking
+
+Type: `string`
+
+Default: `"10.10.0.0/24"`
+
+### <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id)
+
+Description: (Optional) VPC ID where the ALB security group is created
+
+Type: `string`
+
+Default: `""`
+
+## Resources
+
+The following resources are used by this module:
+
+- [aws_acm_certificate.imported](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate) (resource)
+- [aws_cloudwatch_event_rule.hourly](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) (resource)
+- [aws_cloudwatch_event_target.lambda](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) (resource)
+- [aws_iam_role.lambda](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) (resource)
+- [aws_iam_role_policy.lambda](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) (resource)
+- [aws_internet_gateway.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/internet_gateway) (resource)
+- [aws_lambda_function.renewal](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) (resource)
+- [aws_lambda_permission.eventbridge](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_permission) (resource)
+- [aws_lb.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb) (resource)
+- [aws_lb_listener.https](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener) (resource)
+- [aws_route_table.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table) (resource)
+- [aws_route_table_association.public_a](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) (resource)
+- [aws_route_table_association.public_b](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/route_table_association) (resource)
+- [aws_security_group.alb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) (resource)
+- [aws_subnet.public_a](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) (resource)
+- [aws_subnet.public_b](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet) (resource)
+- [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc) (resource)
+- [vault_aws_auth_backend_role.lambda](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/aws_auth_backend_role) (resource)
+- [vault_pki_secret_backend_cert.initial](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_cert) (resource)
+- [vault_policy.lambda_pki_issue](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)
+- [archive_file.lambda_zip](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) (data source)
+- [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) (data source)
+- [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) (data source)
+
+## Outputs
+
+The following outputs are exported:
+
+### <a name="output_acm_certificate_arn"></a> [acm\_certificate\_arn](#output\_acm\_certificate\_arn)
+
+Description: ACM certificate ARN used by ALB and rotated by Lambda
+
+### <a name="output_alb_dns_name"></a> [alb\_dns\_name](#output\_alb\_dns\_name)
+
+Description: DNS name of the demo ALB
+
+### <a name="output_lambda_function_name"></a> [lambda\_function\_name](#output\_lambda\_function\_name)
+
+Description: Name of the certificate renewal Lambda function
+
+### <a name="output_listener_arn"></a> [listener\_arn](#output\_listener\_arn)
+
+Description: ARN of the HTTPS listener using the ACM certificate
+
+### <a name="output_vault_auth_backend_path"></a> [vault\_auth\_backend\_path](#output\_vault\_auth\_backend\_path)
+
+Description: Vault auth backend path configured for Lambda AWS IAM login
+
+### <a name="output_vault_pki_role_name"></a> [vault\_pki\_role\_name](#output\_vault\_pki\_role\_name)
+
+Description: Vault PKI role name used by Lambda to issue certificates
+
+<!-- markdownlint-enable -->
+# External Documentation
+
+- https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/acm_certificate
+- https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb
+- https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lb_listener
+- https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function
+- https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule
+- https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/auth_backend
+- https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/aws_auth_backend_role
+- https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy
+- https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_role
+- https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_cert
+- https://developer.hashicorp.com/vault/api-docs/secret/pki#generate-certificate-and-key
+- https://developer.hashicorp.com/vault/docs/auth/aws
+- https://docs.aws.amazon.com/acm/latest/APIReference/API_ImportCertificate.html
+<!-- END_TF_DOCS -->

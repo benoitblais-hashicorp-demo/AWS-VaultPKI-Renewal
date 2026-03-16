@@ -360,6 +360,20 @@ Type: `map(string)`
 
 Default: `{}`
 
+### <a name="input_vault_allowed_domains"></a> [vault\_allowed\_domains](#input\_vault\_allowed\_domains)
+
+Description: (Optional) Allowed domains for certificates issued by the Vault PKI role
+
+Type: `list(string)`
+
+Default:
+
+```json
+[
+  "demo.example.com"
+]
+```
+
 ### <a name="input_vault_auth_path"></a> [vault\_auth\_path](#input\_vault\_auth\_path)
 
 Description: (Optional) Vault auth mount path used by the renewal Lambda
@@ -455,6 +469,7 @@ The following resources are used by this module:
 - [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc) (resource)
 - [vault_aws_auth_backend_role.lambda](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/aws_auth_backend_role) (resource)
 - [vault_pki_secret_backend_cert.initial](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_cert) (resource)
+- [vault_pki_secret_backend_role.elb_cert_issuer](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_role) (resource)
 - [vault_policy.lambda_pki_issue](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) (resource)
 - [archive_file.lambda_zip](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) (data source)
 - [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) (data source)

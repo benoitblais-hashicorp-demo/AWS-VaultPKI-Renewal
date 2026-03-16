@@ -34,6 +34,7 @@ resource "vault_aws_auth_backend_role" "lambda" {
   backend                  = var.vault_auth_path
   role                     = var.vault_auth_role_name
   auth_type                = "iam"
+  resolve_aws_unique_ids   = false
   bound_iam_principal_arns = [aws_iam_role.lambda.arn]
   token_policies           = [vault_policy.lambda_pki_issue.name]
   token_ttl                = var.vault_auth_token_ttl

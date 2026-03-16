@@ -9,6 +9,8 @@ This Terraform project provisions AWS infrastructure to demonstrate automatic TL
 - An Application Load Balancer (ALB) HTTPS listener uses that ACM certificate ARN.
 - Certificate rotation happens in place by re-importing to the same ACM certificate ARN.
 
+> **Note:** You do not need to wait one hour to demonstrate renewal. You can manually invoke the Lambda at any time to trigger an immediate certificate rotation.
+
 ## Demo Components
 
 - Vault policy and Vault AWS auth role for Lambda certificate issuance
@@ -71,3 +73,32 @@ Required Lambda Vault environment values:
 - ACM certificate reuse pattern to avoid ALB listener ARN changes
 - Fixed-response HTTPS endpoint for simple certificate testing
 - Parameterized networking, naming, and Vault PKI settings
+
+## How Certificate Renewal Works in this Demo
+
+This demo uses an event-driven model where EventBridge invokes a Lambda every hour, and the Lambda handles Vault authentication, certificate issuance, and ACM import.
+
+### The Workflow
+
+1. EventBridge triggers the Lambda on `rate(1 hour)`.
+2. Lambda authenticates to Vault using AWS IAM auth (`VAULT_AUTH_PATH` and `VAULT_AUTH_ROLE`).
+3. Lambda requests a new certificate from Vault PKI (`VAULT_PKI_PATH` and `VAULT_PKI_ROLE`).
+4. Lambda imports the renewed certificate and private key into the same ACM certificate ARN.
+5. ALB HTTPS listener continues using that ACM ARN, now backed by the renewed material.
+
+### Run the Demo Immediately (No 1-Hour Wait)
+
+You can force a renewal by invoking the Lambda manually:
+
+```bash
+aws lambda invoke \
+	--function-name <lambda_function_name> \
+	--payload '{}' \
+	response.json
+```
+
+Then verify results:
+
+- Check Lambda logs in CloudWatch Logs for a successful renewal message.
+- Confirm ACM certificate `Not Before/Not After` timestamps were updated.
+- Test the ALB HTTPS endpoint to validate certificate rotation behavior.

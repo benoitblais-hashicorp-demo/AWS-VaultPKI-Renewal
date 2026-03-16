@@ -46,7 +46,7 @@ resource "vault_pki_secret_backend_role" "elb_cert_issuer" {
   name             = var.vault_pki_role
   allow_subdomains = true
   allowed_domains  = var.vault_allowed_domains
-  max_ttl          = var.renewed_certificate_ttl
+  max_ttl          = "86400"
 }
 
 resource "vault_pki_secret_backend_cert" "initial" {

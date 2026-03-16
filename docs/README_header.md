@@ -92,9 +92,9 @@ You can force a renewal by invoking the Lambda manually:
 
 ```bash
 aws lambda invoke \
-	--function-name <lambda_function_name> \
-	--payload '{}' \
-	response.json
+  --function-name <lambda_function_name> \
+  --payload '{}' \
+  response.json
 ```
 
 Then verify results:

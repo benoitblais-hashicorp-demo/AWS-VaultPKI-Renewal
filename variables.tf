@@ -106,7 +106,7 @@ variable "vault_namespace" {
 variable "vault_pki_path" {
   type        = string
   description = "(Optional) Vault PKI mount path used by the renewal Lambda"
-  default     = "pki_int"
+  default     = "pki-int"
 }
 
 variable "vault_pki_role" {

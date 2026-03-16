@@ -406,7 +406,7 @@ Description: (Optional) Vault PKI mount path used by the renewal Lambda
 
 Type: `string`
 
-Default: `"pki_int"`
+Default: `"pki-int"`
 
 ### <a name="input_vault_pki_role"></a> [vault\_pki\_role](#input\_vault\_pki\_role)
 

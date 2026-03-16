@@ -61,7 +61,7 @@ resource "vault_pki_secret_backend_cert" "initial" {
 resource "aws_acm_certificate" "imported" {
   private_key       = vault_pki_secret_backend_cert.initial.private_key
   certificate_body  = vault_pki_secret_backend_cert.initial.certificate
-  certificate_chain = length(vault_pki_secret_backend_cert.initial.ca_chain) > 0 ? join("\n", vault_pki_secret_backend_cert.initial.ca_chain) : vault_pki_secret_backend_cert.initial.issuing_ca
+  certificate_chain = length(trimspace(vault_pki_secret_backend_cert.initial.ca_chain)) > 0 ? vault_pki_secret_backend_cert.initial.ca_chain : vault_pki_secret_backend_cert.initial.issuing_ca
 
   tags = var.tags
 }

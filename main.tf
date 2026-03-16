@@ -24,7 +24,7 @@ resource "vault_policy" "lambda_pki_issue" {
   name = "${local.name_prefix}-lambda-pki-issue"
 
   policy = <<-EOT
-path "${var.vault_pki_path}/issue/${var.vault_pki_role}" {
+path "${var.vault_pki_path}/issue/${vault_pki_secret_backend_role.elb_cert_issuer.name}" {
   capabilities = ["update"]
 }
 EOT
@@ -41,11 +41,21 @@ resource "vault_aws_auth_backend_role" "lambda" {
   token_max_ttl            = var.vault_auth_token_max_ttl
 }
 
+resource "vault_pki_secret_backend_role" "elb_cert_issuer" {
+  backend          = var.vault_pki_path
+  name             = var.vault_pki_role
+  allow_subdomains = true
+  allowed_domains  = var.vault_allowed_domains
+  max_ttl          = var.renewed_certificate_ttl
+}
+
 resource "vault_pki_secret_backend_cert" "initial" {
   backend     = var.vault_pki_path
-  name        = var.vault_pki_role
+  name        = vault_pki_secret_backend_role.elb_cert_issuer.name
   common_name = var.initial_certificate_common_name
   ttl         = var.renewed_certificate_ttl
+
+  depends_on = [vault_pki_secret_backend_role.elb_cert_issuer]
 }
 
 resource "aws_acm_certificate" "imported" {
@@ -240,7 +250,7 @@ resource "aws_lambda_function" "renewal" {
       VAULT_AUTH_PATH     = var.vault_auth_path
       VAULT_AUTH_ROLE     = vault_aws_auth_backend_role.lambda.role
       VAULT_PKI_PATH      = var.vault_pki_path
-      VAULT_PKI_ROLE      = var.vault_pki_role
+      VAULT_PKI_ROLE      = vault_pki_secret_backend_role.elb_cert_issuer.name
       CERT_COMMON_NAME    = var.renewed_certificate_common_name
       CERT_TTL            = var.renewed_certificate_ttl
     }

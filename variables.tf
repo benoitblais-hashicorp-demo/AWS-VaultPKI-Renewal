@@ -73,6 +73,12 @@ variable "tags" {
   default     = {}
 }
 
+variable "vault_allowed_domains" {
+  type        = list(string)
+  description = "(Optional) Allowed domains for certificates issued by the Vault PKI role"
+  default     = ["demo.example.com"]
+}
+
 variable "vault_auth_path" {
   type        = string
   description = "(Optional) Vault auth mount path used by the renewal Lambda"

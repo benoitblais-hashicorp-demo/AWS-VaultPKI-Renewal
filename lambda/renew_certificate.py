@@ -25,7 +25,8 @@ def _get_vault_token_from_aws_auth() -> str:
 
     sts_body = "Action=GetCallerIdentity&Version=2011-06-15"
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
-    sts_mode = os.getenv("VAULT_AWS_STS_MODE", "global").strip().lower()
+    sts_url = f"https://sts.{region}.amazonaws.com/"
+    sts_host = urllib.parse.urlparse(sts_url).netloc
 
     session = boto3.Session()
     credentials = session.get_credentials()
@@ -34,79 +35,47 @@ def _get_vault_token_from_aws_auth() -> str:
 
     frozen_credentials = credentials.get_frozen_credentials()
 
-    attempted_modes = []
-    modes_to_try = [sts_mode]
-    if sts_mode not in {"global", "regional"}:
-        modes_to_try = ["global", "regional"]
-    elif sts_mode == "global":
-        modes_to_try.append("regional")
-    else:
-        modes_to_try.append("global")
+    signed_request = AWSRequest(
+        method="POST",
+        url=sts_url,
+        data=sts_body,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+            "Host": sts_host,
+        },
+    )
+    SigV4Auth(frozen_credentials, "sts", region).add_auth(signed_request)
 
-    login_data = None
-    last_error = None
+    iam_request_headers = dict(signed_request.headers.items())
 
-    for mode in modes_to_try:
-        attempted_modes.append(mode)
-        if mode == "regional":
-            sts_url = f"https://sts.{region}.amazonaws.com/"
-            signing_region = region
-        else:
-            sts_url = "https://sts.amazonaws.com/"
-            signing_region = "us-east-1"
+    login_payload = json.dumps(
+        {
+            "role": vault_auth_role,
+            "iam_http_request_method": "POST",
+            "iam_request_url": b64encode(sts_url.encode("utf-8")).decode("utf-8"),
+            "iam_request_body": b64encode(sts_body.encode("utf-8")).decode("utf-8"),
+            "iam_request_headers": b64encode(json.dumps(iam_request_headers).encode("utf-8")).decode("utf-8"),
+        }
+    ).encode("utf-8")
 
-        sts_host = urllib.parse.urlparse(sts_url).netloc
+    login_request = urllib.request.Request(
+        f"{vault_addr}/v1/auth/{vault_auth_path}/login",
+        data=login_payload,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+        },
+    )
 
-        signed_request = AWSRequest(
-            method="POST",
-            url=sts_url,
-            data=sts_body,
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
-                "Host": sts_host,
-            },
-        )
-        SigV4Auth(frozen_credentials, "sts", signing_region).add_auth(signed_request)
+    if vault_namespace:
+        login_request.add_header("X-Vault-Namespace", vault_namespace)
 
-        iam_request_headers = dict(signed_request.headers.items())
-
-        login_payload = json.dumps(
-            {
-                "role": vault_auth_role,
-                "iam_http_request_method": "POST",
-                "iam_request_url": b64encode(sts_url.encode("utf-8")).decode("utf-8"),
-                "iam_request_body": b64encode(sts_body.encode("utf-8")).decode("utf-8"),
-                "iam_request_headers": b64encode(json.dumps(iam_request_headers).encode("utf-8")).decode("utf-8"),
-            }
-        ).encode("utf-8")
-
-        login_request = urllib.request.Request(
-            f"{vault_addr}/v1/auth/{vault_auth_path}/login",
-            data=login_payload,
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-            },
-        )
-
-        if vault_namespace:
-            login_request.add_header("X-Vault-Namespace", vault_namespace)
-
-        try:
-            with urllib.request.urlopen(login_request, timeout=30) as response:
-                login_data = json.loads(response.read().decode("utf-8"))
-            break
-        except urllib.error.HTTPError as error:
-            body = error.read().decode("utf-8", errors="ignore")
-            last_error = RuntimeError(
-                f"Vault AWS auth login failed with mode '{mode}': {error.code} {body}"
-            )
-            if "SignatureDoesNotMatch" in body and len(attempted_modes) < len(modes_to_try):
-                continue
-            raise last_error from error
-
-    if login_data is None and last_error is not None:
-        raise last_error
+    try:
+        with urllib.request.urlopen(login_request, timeout=30) as response:
+            login_data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Vault AWS auth login failed: {error.code} {body}") from error
 
     auth_data = login_data.get("auth", {})
     client_token = auth_data.get("client_token")

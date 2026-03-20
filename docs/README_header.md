@@ -1,6 +1,6 @@
 # AWS Vault PKI Renewal Demo
 
-This Terraform project provisions AWS infrastructure to demonstrate automatic TLS certificate renewal using Vault PKI.
+This Terraform project provisions AWS and Vault resources to demonstrate automatic TLS certificate renewal with Vault PKI and in-place ACM re-import for an ALB HTTPS listener.
 
 ## What This Demo Demonstrates
 
@@ -14,12 +14,14 @@ This Terraform project provisions AWS infrastructure to demonstrate automatic TL
 ## Demo Components
 
 - Vault policy and Vault AWS auth role for Lambda certificate issuance
-- Bootstrap certificate issued from an existing Vault PKI mount and role
+- Vault PKI role used for both bootstrap and renewal issuance
+- Bootstrap certificate issued from an existing Vault PKI mount
 - ACM imported certificate (bootstrapped from Vault, rotated by Lambda)
 - Application Load Balancer with HTTPS listener on port 443
 - Lambda function (`python3.12`) for Vault AWS IAM login, renewal, and ACM import
 - EventBridge rule (`rate(1 hour)`) triggering the Lambda
 - IAM role and policy scoped for ACM import + CloudWatch Logs
+- Optional VPC/subnet/route resources when `vpc_id` and `subnet_ids` are not provided
 
 ## Permissions
 
@@ -28,11 +30,12 @@ This Terraform project provisions AWS infrastructure to demonstrate automatic TL
 The AWS identity running Terraform needs permissions to create and manage:
 
 - IAM roles/policies for Lambda
-- Lambda function and permissions
+- Lambda function and invoke permissions
 - EventBridge rules and targets
-- ACM certificate import
+- ACM imported certificate
 - EC2 security groups
 - Elastic Load Balancing resources (ALB/listener)
+- Optional networking resources (VPC, subnets, internet gateway, route tables/associations)
 
 ### Vault
 
@@ -73,6 +76,7 @@ Required Lambda Vault environment values:
 - ACM certificate reuse pattern to avoid ALB listener ARN changes
 - Fixed-response HTTPS endpoint for simple certificate testing
 - Parameterized networking, naming, and Vault PKI settings
+- Optional auto-created networking or bring-your-own VPC/subnets
 
 ## How Certificate Renewal Works in this Demo
 

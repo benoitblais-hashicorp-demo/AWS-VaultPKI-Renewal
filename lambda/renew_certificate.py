@@ -24,9 +24,10 @@ def _get_vault_token_from_aws_auth() -> str:
     vault_namespace = os.getenv("VAULT_NAMESPACE", "")
 
     sts_body = "Action=GetCallerIdentity&Version=2011-06-15"
-    region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "us-east-1"
-    sts_url = f"https://sts.{region}.amazonaws.com/"
-    sts_host = urllib.parse.urlparse(sts_url).netloc
+    # Vault AWS auth defaults to using the global STS endpoint and us-east-1 region
+    region = "us-east-1"
+    sts_url = "https://sts.amazonaws.com/"
+    sts_host = "sts.amazonaws.com"
 
     session = boto3.Session()
     credentials = session.get_credentials()

@@ -46,7 +46,7 @@ jobs:
 
       - name: Terraform Format
         id: fmt
-        uses: benoitblais-hashicorp-demo/GitHubAction-TerraformFormat@v1.0.0
+        uses: benoitblais-hashicorp-demo/GitHubAction-TerraformFormat@v1.0.1
         with:
           check: false
           recursive: true
